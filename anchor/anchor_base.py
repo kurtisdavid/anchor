@@ -253,7 +253,10 @@ class AnchorBaseBeam(object):
                     stop_on_first=False, coverage_samples=10000):
         anchor = {'feature': [], 'mean': [], 'precision': [],
                   'coverage': [], 'examples': [], 'all_precision': 0}
+        print("Taking coverage data...")
         _, coverage_data, _ = sample_fn([], coverage_samples, compute_labels=False)
+        print("Checkpoint 1")
+        
         raw_data, data, labels = sample_fn([], max(1, min_samples_start))
         mean = labels.mean()
         beta = np.log(1. / delta)
@@ -266,17 +269,21 @@ class AnchorBaseBeam(object):
             mean = labels.mean()
             lb = AnchorBaseBeam.dlow_bernoulli(mean, beta / data.shape[0])
         if lb > desired_confidence:
+            print("huh")
             anchor['num_preds'] = data.shape[0]
             anchor['all_precision'] = mean
             return anchor
-        prealloc_size = batch_size * 10000
+        
+        prealloc_size = batch_size * coverage_samples
         current_idx = data.shape[0]
-        data = np.vstack((data, np.zeros((prealloc_size, data.shape[1]),
-                                         data.dtype)))
-        raw_data = np.vstack(
+        #print(prealloc_size, raw_data.shape[1])
+        #print(raw_data.shape)
+        data = np.concatenate((data, np.zeros((prealloc_size, data.shape[1]),
+                                         data.dtype)), axis = 0)
+        raw_data = np.concatenate(
             (raw_data, np.zeros((prealloc_size, raw_data.shape[1]),
-                                raw_data.dtype)))
-        labels = np.hstack((labels, np.zeros(prealloc_size, labels.dtype)))
+                                raw_data.dtype)), axis=0)
+        labels = np.concatenate((labels, np.zeros(prealloc_size, labels.dtype)),axis=0)
         n_features = data.shape[1]
         state = {'t_idx': collections.defaultdict(lambda: set()),
                  't_nsamples': collections.defaultdict(lambda: 0.),
@@ -300,6 +307,7 @@ class AnchorBaseBeam(object):
         if max_anchor_size is None:
             max_anchor_size = n_features
         while current_size <= max_anchor_size:
+            print("Making tuples...")
             tuples = AnchorBaseBeam.make_tuples(
                 best_of_size[current_size - 1], state)
             tuples = [x for x in tuples
@@ -381,4 +389,4 @@ class AnchorBaseBeam(object):
                 1, verbose=verbose)
             best_tuple = tuples[chosen_tuples[0]]
         # return best_tuple, state
-        return AnchorBaseBeam.get_anchor_from_tuple(best_tuple, state)
+        return best_coverage, AnchorBaseBeam.get_anchor_from_tuple(best_tuple, state)
